@@ -1,4 +1,4 @@
-import { Check, CircleAlert, TriangleAlert } from "lucide-react";
+import { Check, CircleAlert, TriangleAlert, XCircle } from "lucide-react";
 import React from "react";
 
 export interface Equipe {
@@ -10,12 +10,13 @@ export interface Equipe {
 export interface EscalaCardProps {
     data: string;
     diaHora: string;
-    status: "confirmada" | "alerta";
+    status: "confirmada" | "alerta" | "critica";
     equipes: Equipe[];
 }
 
 export default function EscalaCard({ data, diaHora, status, equipes }: EscalaCardProps) {
     const isConfirmada = status === "confirmada";
+    const isCritica = status === "critica";
 
     return (
         <div className="bg-white p-6 rounded-2xl border border-gray-200 flex flex-col gap-6 shadow-sm hover:shadow-md transition-shadow">
@@ -30,10 +31,12 @@ export default function EscalaCard({ data, diaHora, status, equipes }: EscalaCar
                 <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
                     isConfirmada 
                     ? "bg-green-100 text-green-700 border border-green-200" 
+                    : isCritica
+                    ? "bg-red-100 text-red-700 border border-red-200"
                     : "bg-orange-50 text-orange-600 border border-orange-200"
                 }`}>
-                    {isConfirmada ? <Check size={14} strokeWidth={2.5} /> : <CircleAlert size={14} strokeWidth={2.5} />}
-                    {isConfirmada ? "Confirmada" : "Alerta"}
+                    {isConfirmada ? <Check size={14} strokeWidth={2.5} /> : isCritica ? <XCircle size={14} strokeWidth={2.5} /> : <CircleAlert size={14} strokeWidth={2.5} />}
+                    {isConfirmada ? "Confirmada" : isCritica ? "Crítica" : "Alerta"}
                 </div>
             </div>
 
