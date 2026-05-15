@@ -1,49 +1,59 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import EscalaCard, { EscalaCardProps } from "@/components/dashboard/escala-card";
-import { EscalasGridSkeleton } from "@/components/dashboard/skeletons";
-import { API_BASE_URL } from "@/lib/constants";
-
-// --- Tipos espelhando a resposta da API ---
-interface MembroEquipe {
-  id: number;
-  nome: string;
-}
-
-interface DepartamentoEscala {
-  id: number;
-  nome: string;
-  equipe: MembroEquipe[];
-  alerta: string | null;
-}
-
-interface DiaEscala {
-  dia: string;
-  dia_formatado: string;
-  dia_semana: string;
-  status: "confirmada" | "alerta" | "critica";
-  departamentos: DepartamentoEscala[];
-}
+import { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import EscalaCard, { EscalaCardProps } from '@/components/dashboard/escala-card';
+import { EscalasGridSkeleton } from '@/components/dashboard/skeletons';
+import { createClient } from '@/lib/supabase/client';
+import type { EscalaMensal } from '@/lib/types/database';
 
 const MESES_PT: Record<number, string> = {
-  1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",
-  5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto",
-  9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+  1: 'Janeiro',  2: 'Fevereiro', 3: 'Março',    4: 'Abril',
+  5: 'Maio',     6: 'Junho',     7: 'Julho',    8: 'Agosto',
+  9: 'Setembro', 10: 'Outubro',  11: 'Novembro', 12: 'Dezembro',
 };
 
-function transformarParaCards(dados: DiaEscala[]): EscalaCardProps[] {
-  return dados.map((dia) => ({
-    data: dia.dia_formatado,
-    diaHora: dia.dia_semana,
-    status: dia.status,
-    equipes: dia.departamentos.map((dept) => ({
-      nome: dept.nome,
-      membros: dept.equipe.map((m) => m.nome).join(", "),
-      alerta: dept.alerta ?? undefined,
-    })),
-  }));
+/**
+ * Transforma os dados da view vw_escalas_mensais para o formato dos EscalaCards.
+ * A view já agrupa por escala (1 linha por departamento por data) — aqui
+ * agrupamos por dia para exibir múltiplos departamentos em um mesmo card.
+ */
+function transformarParaCards(dados: EscalaMensal[]): EscalaCardProps[] {
+  // Agrupa por dia (pode haver múltiplos departamentos no mesmo dia)
+  const porDia = new Map<string, EscalaMensal[]>();
+  for (const linha of dados) {
+    const key = linha.dia;
+    if (!porDia.has(key)) porDia.set(key, []);
+    porDia.get(key)!.push(linha);
+  }
+
+  return Array.from(porDia.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, linhas]) => {
+      const primeira = linhas[0];
+
+      // Status do dia = o pior entre todos os departamentos
+      const statusPrioridade = { critica: 0, alerta: 1, confirmada: 2 };
+      const statusDia = linhas.reduce((pior, l) =>
+        statusPrioridade[l.status] < statusPrioridade[pior] ? l.status : pior,
+        'confirmada' as EscalaMensal['status']
+      );
+
+      return {
+        data: primeira.dia_formatado,
+        diaHora: primeira.dia_semana,
+        status: statusDia,
+        equipes: linhas.map((l) => ({
+          nome: l.departamento_nome,
+          membros: l.voluntarios.map((v) => v.nome).join(', ') || 'Sem voluntários',
+          alerta: l.status !== 'confirmada'
+            ? l.status === 'critica'
+              ? 'Equipe incompleta — crítico!'
+              : 'Poucos voluntários escalados'
+            : undefined,
+        })),
+      };
+    });
 }
 
 export default function EscalasSection() {
@@ -56,20 +66,28 @@ export default function EscalasSection() {
 
   useEffect(() => {
     buscarEscalas();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mes, ano]);
 
   async function buscarEscalas() {
     setLoading(true);
     setErro(null);
+
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/schedules/monthly?mes=${mes}&ano=${ano}`
-      );
-      if (!response.ok) throw new Error("Erro ao buscar escalas");
-      const data: DiaEscala[] = await response.json();
-      setEscalas(transformarParaCards(data));
+      const supabase = createClient();
+
+      const { data, error } = await supabase
+        .from('vw_escalas_mensais')
+        .select('*')
+        .eq('mes', mes)
+        .eq('ano', ano)
+        .order('data_hora', { ascending: true });
+
+      if (error) throw error;
+
+      setEscalas(transformarParaCards((data as EscalaMensal[]) ?? []));
     } catch (error) {
-      setErro(error instanceof Error ? error.message : "Erro desconhecido");
+      setErro(error instanceof Error ? error.message : 'Erro ao carregar escalas');
     } finally {
       setLoading(false);
     }

@@ -1,16 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/lib/constants";
-
-
-
-interface Metrics {
-  participacao_media: number;
-  faltas_no_mes: number;
-  escalas_concluidas: number;
-  total_escalas: number;
-}
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { Voluntario } from '@/lib/types/database';
 
 interface VoluntarioRanking {
   id: number;
@@ -19,36 +11,56 @@ interface VoluntarioRanking {
 }
 
 export default function RelatoriosPage() {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [ranking, setRanking] = useState<VoluntarioRanking[]>([]);
+  const [totalEscalas, setTotalEscalas] = useState(0);
+  const [totalVoluntarios, setTotalVoluntarios] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([buscarMetrics(), buscarRanking()]).finally(() =>
-      setLoading(false)
-    );
+    buscarDados();
   }, []);
 
-  async function buscarMetrics() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/reports/metrics`);
-      if (!response.ok) throw new Error("Erro ao buscar métricas");
-      const data: Metrics = await response.json();
-      setMetrics(data);
-    } catch (error) {
-      console.error(error);
-    }
-  }
+  async function buscarDados() {
+    const supabase = createClient();
 
-  async function buscarRanking() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/reports/ranking`);
-      if (!response.ok) throw new Error("Erro ao buscar ranking");
-      const data: VoluntarioRanking[] = await response.json();
-      setRanking(data);
-    } catch (error) {
-      console.error(error);
+    // Conta total de escalas
+    const { count: countEscalas } = await supabase
+      .from('escalas')
+      .select('*', { count: 'exact', head: true });
+
+    // Conta voluntários ativos
+    const { count: countVols } = await supabase
+      .from('voluntarios')
+      .select('*', { count: 'exact', head: true })
+      .eq('ativo', true);
+
+    // Ranking de voluntários por número de escalas
+    const { data: escalaVols } = await supabase
+      .from('escala_voluntarios')
+      .select('voluntario_id, voluntarios(id, nome)');
+
+    // Agrupa contagem por voluntário
+    const contagem: Record<number, { nome: string; total: number }> = {};
+    for (const ev of escalaVols ?? []) {
+      const vol = ev.voluntarios as unknown as Voluntario | null;
+      if (!vol) continue;
+      if (!contagem[vol.id]) contagem[vol.id] = { nome: vol.nome, total: 0 };
+      contagem[vol.id].total += 1;
     }
+
+    const rankingOrdenado = Object.entries(contagem)
+      .map(([id, { nome, total }]) => ({
+        id: Number(id),
+        nome,
+        total_escalas: total,
+      }))
+      .sort((a, b) => b.total_escalas - a.total_escalas)
+      .slice(0, 10);
+
+    setTotalEscalas(countEscalas ?? 0);
+    setTotalVoluntarios(countVols ?? 0);
+    setRanking(rankingOrdenado);
+    setLoading(false);
   }
 
   // Maior valor do ranking para calcular porcentagem das barras
@@ -67,43 +79,28 @@ export default function RelatoriosPage() {
       {loading && <p className="text-sm text-gray-400">Carregando relatórios...</p>}
 
       {/* Cards de Métricas */}
-      {metrics && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {/* Participação Média */}
+      {!loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          {/* Total de Escalas */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col gap-1">
-            <p className="text-sm text-gray-500">Participação Média</p>
-            <p className="text-3xl font-bold text-gray-900">
-              {metrics.participacao_media}%
-            </p>
-            <p className="text-xs text-green-600">↑ 5% vs mês anterior</p>
+            <p className="text-sm text-gray-500">Total de Escalas</p>
+            <p className="text-3xl font-bold text-gray-900">{totalEscalas}</p>
+            <p className="text-xs text-gray-400">Todas as escalas criadas</p>
           </div>
 
-          {/* Faltas */}
+          {/* Voluntários Ativos */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col gap-1">
-            <p className="text-sm text-gray-500">Faltas</p>
-            <p className="text-3xl font-bold text-gray-900">
-              {metrics.faltas_no_mes}
-            </p>
-            <p className="text-xs text-gray-400">Neste mês</p>
-          </div>
-
-          {/* Escalas Concluídas */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col gap-1">
-            <p className="text-sm text-gray-500">Escalas Concluídas</p>
-            <p className="text-3xl font-bold text-gray-900">
-              {metrics.escalas_concluidas}
-            </p>
-            <p className="text-xs text-gray-400">
-              De {metrics.total_escalas} escalas
-            </p>
+            <p className="text-sm text-gray-500">Voluntários Ativos</p>
+            <p className="text-3xl font-bold text-gray-900">{totalVoluntarios}</p>
+            <p className="text-xs text-gray-400">Cadastrados no sistema</p>
           </div>
         </div>
       )}
 
       {/* Ranking — Top Voluntários */}
-      {ranking.length > 0 && (
+      {!loading && ranking.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-2xl p-6 flex flex-col gap-5">
-          <h2 className="text-lg font-bold text-gray-900">Top Voluntários</h2>
+          <h2 className="text-lg font-bold text-gray-900">Top Voluntários por Escalas</h2>
 
           <div className="flex flex-col gap-4">
             {ranking.map((vol) => {
@@ -115,7 +112,7 @@ export default function RelatoriosPage() {
                       {vol.nome}
                     </p>
                     <p className="text-sm text-gray-500">
-                      {vol.total_escalas} escalas
+                      {vol.total_escalas} {vol.total_escalas === 1 ? 'escala' : 'escalas'}
                     </p>
                   </div>
                   {/* Barra de progresso */}
@@ -123,13 +120,19 @@ export default function RelatoriosPage() {
                     <div
                       className="h-full bg-gray-900 rounded-full transition-all duration-500"
                       style={{ width: `${porcentagem}%` }}
-                    ></div>
+                    />
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
+      )}
+
+      {!loading && ranking.length === 0 && (
+        <p className="text-sm text-gray-400">
+          Nenhum dado de escala disponível ainda.
+        </p>
       )}
     </div>
   );

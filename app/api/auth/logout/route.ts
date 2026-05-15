@@ -1,11 +1,16 @@
-import { NextResponse } from "next/server";
-
 /**
+ * app/api/auth/logout/route.ts
+ *
  * POST /api/auth/logout
- * Apaga o cookie do token, efetivamente deslogando o usuário.
+ *
+ * Encerra a sessão do Supabase Auth e limpa os cookies de autenticação.
  */
+
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+
 export async function POST() {
-  const response = NextResponse.json({ success: true });
-  response.cookies.delete("creative_token");
-  return response;
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  return NextResponse.json({ success: true });
 }

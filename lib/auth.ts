@@ -1,55 +1,44 @@
 /**
  * lib/auth.ts
- * Funções utilitárias de autenticação para uso server-side.
- * Nunca expõe o JWT diretamente ao cliente.
+ *
+ * Helpers de autenticação server-side usando Supabase Auth.
+ * Usado pelos Route Handlers e Server Components.
+ *
+ * O FastAPI foi substituído — todas as operações de auth passam pelo Supabase.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-export interface LoginResponse {
-  access_token: string;
-  token_type: string;
-}
+import { createClient } from '@/lib/supabase/server';
 
 /**
- * Chama o endpoint de login do FastAPI e retorna o JWT.
- * Deve ser usado apenas em Route Handlers (server-side).
+ * Retorna o usuário autenticado atual (a partir dos cookies de sessão).
+ * Retorna null se não houver sessão ativa ou houver erro de conexão.
  */
-export async function loginAPI(
-  email: string,
-  password: string
-): Promise<LoginResponse> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || "Credenciais inválidas");
+export async function getUser() {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user;
+  } catch (error) {
+    console.error('Erro ao buscar usuário (auth.ts):', error);
+    return null;
   }
-
-  return response.json();
 }
 
 /**
- * Chama o endpoint de cadastro de líderes do FastAPI.
- * Deve ser usado apenas em Route Handlers (server-side).
+ * Retorna a sessão atual.
+ * Útil para obter o access_token quando necessário.
  */
-export async function registerAPI(
-  nome: string,
-  email: string,
-  password: string
-): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, email, password }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || "Erro ao criar conta");
+export async function getSession() {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session;
+  } catch (error) {
+    console.error('Erro ao buscar sessão (auth.ts):', error);
+    return null;
   }
 }

@@ -1,41 +1,29 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { API_BASE_URL } from "@/lib/constants";
-
-
-
-interface Department {
-  id: number;
-  nome: string;
-}
-
-interface Voluntario {
-  id: number;
-  nome: string;
-  cargo: string;
-}
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import type { Departamento, Voluntario } from '@/lib/types/database';
 
 export default function NovaEscalaPage() {
   const router = useRouter();
-  const [departamentos, setDepartamentos] = useState<Department[]>([]);
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [voluntarios, setVoluntarios] = useState<Voluntario[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Form state
-  const [data, setData] = useState("");
-  const [horario, setHorario] = useState("");
-  const [departamentoId, setDepartamentoId] = useState<number | "">("");
+  const [data, setData] = useState('');
+  const [horario, setHorario] = useState('');
+  const [departamentoId, setDepartamentoId] = useState<number | ''>('');
   const [selecionados, setSelecionados] = useState<number[]>([]);
-  const [observacoes, setObservacoes] = useState("");
+  const [observacoes, setObservacoes] = useState('');
 
   useEffect(() => {
     buscarDepartamentos();
   }, []);
 
   useEffect(() => {
-    if (departamentoId !== "") {
+    if (departamentoId !== '') {
       buscarVoluntarios(departamentoId as number);
     } else {
       setVoluntarios([]);
@@ -44,27 +32,23 @@ export default function NovaEscalaPage() {
   }, [departamentoId]);
 
   async function buscarDepartamentos() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/departments/`);
-      if (!response.ok) throw new Error("Erro ao buscar departamentos");
-      const data: Department[] = await response.json();
-      setDepartamentos(data);
-    } catch (error) {
-      console.error(error);
-    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('departamentos')
+      .select('*')
+      .order('nome');
+    if (data) setDepartamentos(data as Departamento[]);
   }
 
   async function buscarVoluntarios(deptId: number) {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/users/department/${deptId}`
-      );
-      if (!response.ok) throw new Error("Erro ao buscar voluntários");
-      const data: Voluntario[] = await response.json();
-      setVoluntarios(data);
-    } catch (error) {
-      console.error(error);
-    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('voluntarios')
+      .select('*')
+      .eq('departamento_id', deptId)
+      .eq('ativo', true)
+      .order('nome');
+    if (data) setVoluntarios(data as Voluntario[]);
   }
 
   function toggleVoluntario(id: number) {
@@ -74,33 +58,48 @@ export default function NovaEscalaPage() {
   }
 
   async function salvarEscala() {
-    if (!data || !horario || departamentoId === "" || selecionados.length === 0) {
-      alert("Preencha todos os campos obrigatórios e selecione ao menos 1 voluntário.");
+    if (!data || !horario || departamentoId === '' || selecionados.length === 0) {
+      alert('Preencha todos os campos obrigatórios e selecione ao menos 1 voluntário.');
       return;
     }
 
     setLoading(true);
+    const supabase = createClient();
+
     try {
       const dataHora = `${data}T${horario}:00`;
-      const response = await fetch(`${API_BASE_URL}/schedules/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+
+      // 1. Cria a escala
+      const { data: novaEscala, error: erroEscala } = await supabase
+        .from('escalas')
+        .insert({
           data_hora: dataHora,
-          department_id: departamentoId,
+          departamento_id: departamentoId as number,
           culto_id: null,
-          voluntarios_ids: selecionados,
           observacoes: observacoes || null,
-        }),
-      });
+        })
+        .select('id')
+        .single();
 
-      if (!response.ok) throw new Error("Erro ao salvar escala");
+      if (erroEscala || !novaEscala) throw erroEscala ?? new Error('Falha ao criar escala');
 
-      alert("Escala criada com sucesso!");
-      router.push("/");
+      // 2. Vincula os voluntários selecionados
+      const vinculos = selecionados.map((voluntario_id) => ({
+        escala_id: novaEscala.id,
+        voluntario_id,
+      }));
+
+      const { error: erroVinculos } = await supabase
+        .from('escala_voluntarios')
+        .insert(vinculos);
+
+      if (erroVinculos) throw erroVinculos;
+
+      alert('Escala criada com sucesso!');
+      router.push('/');
     } catch (error) {
       console.error(error);
-      alert("Erro ao salvar escala");
+      alert('Erro ao salvar escala. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -147,14 +146,12 @@ export default function NovaEscalaPage() {
           </label>
           <select
             value={departamentoId}
-            onChange={(e) => setDepartamentoId(Number(e.target.value) || "")}
+            onChange={(e) => setDepartamentoId(Number(e.target.value) || '')}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-200"
           >
             <option value="">Selecione...</option>
             {departamentos.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.nome}
-              </option>
+              <option key={d.id} value={d.id}>{d.nome}</option>
             ))}
           </select>
         </div>
@@ -178,10 +175,20 @@ export default function NovaEscalaPage() {
                     className="w-4 h-4 rounded border-gray-300 accent-gray-900"
                   />
                   <span className="text-sm text-gray-900">{vol.nome}</span>
+                  {vol.cargo && vol.cargo !== 'Voluntário' && (
+                    <span className="text-xs text-gray-400 ml-auto">{vol.cargo}</span>
+                  )}
                 </label>
               ))}
             </div>
           </div>
+        )}
+
+        {/* Mensagem quando departamento selecionado mas sem voluntários */}
+        {departamentoId !== '' && voluntarios.length === 0 && (
+          <p className="text-sm text-gray-400 italic">
+            Nenhum voluntário ativo neste departamento.
+          </p>
         )}
 
         {/* Observações */}
@@ -205,10 +212,10 @@ export default function NovaEscalaPage() {
             disabled={loading}
             className="flex-1 bg-gray-900 text-white text-sm font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50"
           >
-            {loading ? "Salvando..." : "Salvar Escala"}
+            {loading ? 'Salvando...' : 'Salvar Escala'}
           </button>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push('/')}
             className="flex-1 bg-gray-100 text-gray-700 text-sm font-semibold py-3 rounded-xl hover:bg-gray-200 transition-colors cursor-pointer"
           >
             Cancelar

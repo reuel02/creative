@@ -1,24 +1,17 @@
-"use client";
+'use client';
 
-import { Church, Plus, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/lib/constants";
-
-
-
-interface Culto {
-  id: number;
-  nome: string;
-  data: string;
-}
+import { Church, Plus, Pencil, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { Culto } from '@/lib/types/database';
 
 function formatarDataHora(iso: string): string {
   const d = new Date(iso);
-  const dia = String(d.getDate()).padStart(2, "0");
-  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, '0');
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
   const ano = d.getFullYear();
-  const hora = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
+  const hora = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
   return `${dia}/${mes}/${ano} às ${hora}:${min}`;
 }
 
@@ -29,32 +22,32 @@ export default function CultosPage() {
   // Modal states
   const [modalAberto, setModalAberto] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [formNome, setFormNome] = useState("");
-  const [formData, setFormData] = useState("");
-  const [formHora, setFormHora] = useState("");
+  const [formNome, setFormNome] = useState('');
+  const [formData, setFormData] = useState('');
+  const [formHora, setFormHora] = useState('');
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     buscarCultos();
   }, []);
 
   async function buscarCultos() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/cultos/`);
-      if (!response.ok) throw new Error("Erro");
-      const data: Culto[] = await response.json();
-      setCultos(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+    const supabase = createClient();
+
+    const { data, error } = await supabase
+      .from('cultos')
+      .select('*')
+      .order('data', { ascending: true });
+
+    if (!error) setCultos((data as Culto[]) ?? []);
+    setLoading(false);
   }
 
   function abrirModalCriar() {
     setEditandoId(null);
-    setFormNome("");
-    setFormData("");
-    setFormHora("");
+    setFormNome('');
+    setFormData('');
+    setFormHora('');
     setModalAberto(true);
   }
 
@@ -62,58 +55,57 @@ export default function CultosPage() {
     setEditandoId(culto.id);
     setFormNome(culto.nome);
     const d = new Date(culto.data);
-    setFormData(d.toISOString().split("T")[0]);
-    setFormHora(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`);
+    setFormData(d.toISOString().split('T')[0]);
+    setFormHora(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
     setModalAberto(true);
   }
 
   async function salvar() {
     if (!formNome || !formData || !formHora) {
-      alert("Preencha todos os campos");
+      alert('Preencha todos os campos');
       return;
     }
 
     const dataISO = `${formData}T${formHora}:00`;
+    setSalvando(true);
+
+    const supabase = createClient();
 
     try {
       if (editandoId) {
-        // Editar
-        const response = await fetch(`${API_BASE_URL}/cultos/${editandoId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nome: formNome, data: dataISO }),
-        });
-        if (!response.ok) throw new Error("Erro ao editar");
+        const { error } = await supabase
+          .from('cultos')
+          .update({ nome: formNome, data: dataISO })
+          .eq('id', editandoId);
+        if (error) throw error;
       } else {
-        // Criar
-        const response = await fetch(`${API_BASE_URL}/cultos/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nome: formNome, data: dataISO }),
-        });
-        if (!response.ok) throw new Error("Erro ao criar");
+        const { error } = await supabase
+          .from('cultos')
+          .insert({ nome: formNome, data: dataISO });
+        if (error) throw error;
       }
 
       setModalAberto(false);
       buscarCultos();
     } catch (error) {
       console.error(error);
-      alert("Erro ao salvar culto");
+      alert('Erro ao salvar culto');
+    } finally {
+      setSalvando(false);
     }
   }
 
   async function excluir(id: number) {
-    if (!confirm("Tem certeza que deseja excluir este culto?")) return;
+    if (!confirm('Tem certeza que deseja excluir este culto?')) return;
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/cultos/${id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Erro ao excluir");
-      buscarCultos();
-    } catch (error) {
+    const supabase = createClient();
+    const { error } = await supabase.from('cultos').delete().eq('id', id);
+
+    if (error) {
       console.error(error);
-      alert("Erro ao excluir culto");
+      alert('Erro ao excluir culto');
+    } else {
+      buscarCultos();
     }
   }
 
@@ -186,7 +178,7 @@ export default function CultosPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 w-full max-w-md flex flex-col gap-5 shadow-xl">
             <h2 className="text-xl font-bold text-gray-900">
-              {editandoId ? "Editar Culto" : "Novo Culto"}
+              {editandoId ? 'Editar Culto' : 'Novo Culto'}
             </h2>
 
             <div className="flex flex-col gap-1">
@@ -225,9 +217,10 @@ export default function CultosPage() {
             <div className="flex gap-3 mt-2">
               <button
                 onClick={salvar}
-                className="flex-1 bg-gray-900 text-white text-sm font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer"
+                disabled={salvando}
+                className="flex-1 bg-gray-900 text-white text-sm font-semibold py-3 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer disabled:opacity-50"
               >
-                {editandoId ? "Salvar Alterações" : "Criar Culto"}
+                {salvando ? 'Salvando...' : editandoId ? 'Salvar Alterações' : 'Criar Culto'}
               </button>
               <button
                 onClick={() => setModalAberto(false)}

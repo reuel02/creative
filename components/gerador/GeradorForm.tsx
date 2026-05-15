@@ -1,33 +1,30 @@
-"use client";
+'use client';
 
-import { Zap, Lightbulb } from "lucide-react";
-import { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/lib/constants";
+import { Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { Departamento } from '@/lib/types/database';
 
 const MESES_PT: Record<number, string> = {
-  1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril",
-  5: "maio", 6: "junho", 7: "julho", 8: "agosto",
-  9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro",
+  1: 'janeiro',  2: 'fevereiro', 3: 'março',    4: 'abril',
+  5: 'maio',     6: 'junho',     7: 'julho',    8: 'agosto',
+  9: 'setembro', 10: 'outubro',  11: 'novembro', 12: 'dezembro',
 };
-
-interface Department {
-  id: number;
-  nome: string;
-}
 
 /**
  * GeradorForm — componente pesado carregado via next/dynamic
- * na rota /gerador. Separa lógica de negócio do shell da página.
+ * na rota /gerador. Gera escalas automaticamente para os domingos do mês,
+ * inserindo diretamente nas tabelas do Supabase.
  */
 export default function GeradorForm() {
-  const [departamentos, setDepartamentos] = useState<Department[]>([]);
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [loading, setLoading] = useState(false);
 
   const agora = new Date();
   const [mes, setMes] = useState(
-    `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}`
+    `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`
   );
-  const [departamentoId, setDepartamentoId] = useState<number | "">("");
+  const [departamentoId, setDepartamentoId] = useState<number | ''>('');
   const [quantidade, setQuantidade] = useState(4);
   const [resultado, setResultado] = useState<string | null>(null);
 
@@ -36,57 +33,68 @@ export default function GeradorForm() {
   }, []);
 
   async function buscarDepartamentos() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/departments/`);
-      if (!response.ok) throw new Error("Erro");
-      const data: Department[] = await response.json();
-      setDepartamentos(data);
-    } catch (error) {
-      console.error(error);
-    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('departamentos')
+      .select('*')
+      .order('nome');
+    if (data) setDepartamentos(data as Departamento[]);
   }
 
   async function gerarEscalas() {
-    if (departamentoId === "") {
-      alert("Selecione um departamento");
+    if (departamentoId === '') {
+      alert('Selecione um departamento');
       return;
     }
+
     setLoading(true);
     setResultado(null);
 
     try {
-      const [anoStr, mesStr] = mes.split("-");
+      const [anoStr, mesStr] = mes.split('-');
       const anoNum = parseInt(anoStr);
       const mesNum = parseInt(mesStr);
 
-      const cultos = [];
+      // Coleta os domingos do mês até atingir a quantidade desejada
+      const domingosDates: string[] = [];
       const d = new Date(anoNum, mesNum - 1, 1);
-      while (d.getMonth() === mesNum - 1 && cultos.length < quantidade) {
+      while (d.getMonth() === mesNum - 1 && domingosDates.length < quantidade) {
         if (d.getDay() === 0) {
-          cultos.push({ nome: "Culto de Domingo", data: d.toISOString() });
+          // Data/hora às 9h da manhã
+          const iso = new Date(anoNum, mesNum - 1, d.getDate(), 9, 0, 0).toISOString();
+          domingosDates.push(iso);
         }
         d.setDate(d.getDate() + 1);
       }
 
-      const response = await fetch(`${API_BASE_URL}/schedules/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          department_id: departamentoId,
-          mes: `${MESES_PT[mesNum]} de ${anoNum}`,
-          cultos,
-        }),
-      });
+      if (domingosDates.length === 0) {
+        setResultado('❌ Nenhum domingo encontrado para o mês selecionado.');
+        return;
+      }
 
-      if (!response.ok) throw new Error("Erro ao gerar escalas");
+      const supabase = createClient();
 
-      const data = await response.json();
+      // Insere cada domingo como uma escala
+      const escalasParaInserir = domingosDates.map((data_hora) => ({
+        data_hora,
+        departamento_id: departamentoId as number,
+        culto_id: null,
+        observacoes: `Gerado automaticamente para ${MESES_PT[mesNum]} de ${anoNum}`,
+      }));
+
+      const { data: inseridas, error } = await supabase
+        .from('escalas')
+        .insert(escalasParaInserir)
+        .select('id');
+
+      if (error) throw error;
+
       setResultado(
-        `✅ ${Array.isArray(data) ? data.length : 0} escala(s) gerada(s) com sucesso para ${MESES_PT[mesNum]} de ${anoNum}!`
+        `✅ ${inseridas?.length ?? 0} escala(s) gerada(s) com sucesso para ${MESES_PT[mesNum]} de ${anoNum}! Agora adicione os voluntários em cada escala.`
       );
     } catch (error) {
       console.error(error);
-      setResultado("❌ Erro ao gerar escalas. Tente novamente.");
+      setResultado('❌ Erro ao gerar escalas. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -110,7 +118,7 @@ export default function GeradorForm() {
         <label className="text-sm font-medium text-gray-700">Departamento</label>
         <select
           value={departamentoId}
-          onChange={(e) => setDepartamentoId(Number(e.target.value) || "")}
+          onChange={(e) => setDepartamentoId(Number(e.target.value) || '')}
           className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-200 w-full"
         >
           <option value="">Selecione...</option>
@@ -123,7 +131,7 @@ export default function GeradorForm() {
       {/* Quantidade */}
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium text-gray-700">
-          Quantidade de Escalas
+          Quantidade de Escalas (Domingos)
         </label>
         <input
           type="number"
@@ -142,16 +150,16 @@ export default function GeradorForm() {
         className="flex items-center justify-center gap-2 bg-gray-900 text-white text-sm font-semibold py-3.5 rounded-xl hover:bg-gray-800 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 mt-1"
       >
         <Zap size={16} />
-        {loading ? "Gerando escalas..." : "Gerar Escalas"}
+        {loading ? 'Gerando escalas...' : 'Gerar Escalas'}
       </button>
 
       {/* Resultado */}
       {resultado && (
         <div
           className={`text-sm rounded-xl p-4 border ${
-            resultado.startsWith("✅")
-              ? "bg-green-50 border-green-200 text-green-700"
-              : "bg-red-50 border-red-200 text-red-700"
+            resultado.startsWith('✅')
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-red-50 border-red-200 text-red-700'
           }`}
         >
           {resultado}

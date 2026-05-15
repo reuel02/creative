@@ -1,40 +1,20 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback } from "react";
-import { API_BASE_URL } from "@/lib/constants";
+import { useEffect, useState, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import {
   X,
   UserPlus,
   Loader2,
-  Eye,
-  EyeOff,
   Users,
-} from "lucide-react";
-
-// ─── Tipos ───────────────────────────────────────────────────────────────────
-
-interface Department {
-  id: number;
-  nome: string;
-}
-
-interface Voluntario {
-  id: number;
-  nome: string;
-  cargo: string;
-  ativo: boolean;
-  departamento_nome: string;
-}
-
-interface DepartamentoGrupo {
-  nome: string;
-  voluntarios: Voluntario[];
-}
+  Phone,
+} from 'lucide-react';
+import type { Departamento, VoluntarioComDepartamento } from '@/lib/types/database';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getIniciais(nome: string): string {
-  const partes = nome.trim().split(" ");
+  const partes = nome.trim().split(' ');
   if (partes.length >= 2) {
     return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
   }
@@ -43,79 +23,86 @@ function getIniciais(nome: string): string {
 
 function getDeptIcon(nome: string): string {
   const lower = nome.toLowerCase();
-  if (lower.includes("corte") || lower.includes("câmera") || lower.includes("camera")) return "🎬";
-  if (lower.includes("iluminação") || lower.includes("iluminacao") || lower.includes("luz")) return "💡";
-  if (lower.includes("som") || lower.includes("áudio") || lower.includes("audio")) return "🎵";
-  if (lower.includes("mídia") || lower.includes("midia")) return "📱";
-  if (lower.includes("transmissão") || lower.includes("transmissao")) return "📡";
-  return "⚙️";
+  if (lower.includes('corte') || lower.includes('câmera') || lower.includes('camera')) return '🎬';
+  if (lower.includes('iluminação') || lower.includes('iluminacao') || lower.includes('luz')) return '💡';
+  if (lower.includes('som') || lower.includes('áudio') || lower.includes('audio')) return '🎵';
+  if (lower.includes('mídia') || lower.includes('midia')) return '📱';
+  if (lower.includes('transmissão') || lower.includes('transmissao')) return '📡';
+  return '⚙️';
+}
+
+// ─── Agrupamento por Departamento ────────────────────────────────────────────
+
+interface DepartamentoGrupo {
+  nome: string;
+  voluntarios: VoluntarioComDepartamento[];
+}
+
+function agruparPorDepartamento(voluntarios: VoluntarioComDepartamento[]): DepartamentoGrupo[] {
+  const mapa: Record<string, VoluntarioComDepartamento[]> = {};
+
+  for (const v of voluntarios) {
+    const dept = v.departamentos?.nome ?? 'Sem departamento';
+    if (!mapa[dept]) mapa[dept] = [];
+    mapa[dept].push(v);
+  }
+
+  return Object.entries(mapa).map(([nome, voluntarios]) => ({ nome, voluntarios }));
 }
 
 // ─── Modal de Cadastro de Voluntário ─────────────────────────────────────────
 
 interface NovoVoluntarioModalProps {
-  departamentos: Department[];
+  departamentos: Departamento[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function NovoVoluntarioModal({
-  departamentos,
-  onClose,
-  onSuccess,
-}: NovoVoluntarioModalProps) {
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [cargo, setCargo] = useState("");
-  const [departamentoId, setDepartamentoId] = useState<number | "">("");
-  const [showPassword, setShowPassword] = useState(false);
+function NovoVoluntarioModal({ departamentos, onClose, onSuccess }: NovoVoluntarioModalProps) {
+  const [nome, setNome] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [cargo, setCargo] = useState('Voluntário');
+  const [departamentoId, setDepartamentoId] = useState<number | ''>('');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   // Fechar com Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === 'Escape') onClose();
     };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!nome || !email || !password || !cargo || departamentoId === "") {
-      setErro("Preencha todos os campos obrigatórios.");
+
+    if (!nome || departamentoId === '') {
+      setErro('Preencha o nome e selecione o departamento.');
       return;
     }
+
     setLoading(true);
     setErro(null);
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nome,
-          email,
-          password,
-          cargo,
-          department_id: departamentoId,
-          ativo: true,
-        }),
-      });
+    const supabase = createClient();
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || "Erro ao cadastrar voluntário");
-      }
+    const { error } = await supabase.from('voluntarios').insert({
+      nome: nome.trim(),
+      telefone: telefone.trim() || null,
+      cargo: cargo.trim() || 'Voluntário',
+      departamento_id: departamentoId as number,
+      ativo: true,
+    });
 
-      onSuccess();
-    } catch (error: unknown) {
-      setErro(error instanceof Error ? error.message : "Erro desconhecido");
-    } finally {
+    if (error) {
+      setErro(error.message);
       setLoading(false);
+      return;
     }
+
+    onSuccess();
   }
 
   return (
@@ -126,10 +113,7 @@ function NovoVoluntarioModal({
       aria-label="Cadastrar novo voluntário"
     >
       {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal Card */}
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -140,12 +124,8 @@ function NovoVoluntarioModal({
               <UserPlus size={18} className="text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900 text-lg">
-                Novo Voluntário
-              </h3>
-              <p className="text-gray-500 text-xs">
-                Preencha os dados do voluntário
-              </p>
+              <h3 className="font-bold text-gray-900 text-lg">Novo Voluntário</h3>
+              <p className="text-gray-500 text-xs">Preencha os dados do voluntário</p>
             </div>
           </div>
           <button
@@ -175,51 +155,28 @@ function NovoVoluntarioModal({
             />
           </div>
 
-          {/* Email */}
+          {/* Telefone */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-gray-700">
-              E-mail <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="vol-email"
-              type="email"
-              placeholder="voluntario@igreja.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900 outline-none transition-all text-sm"
-              required
-            />
-          </div>
-
-          {/* Senha */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-gray-700">
-              Senha de acesso <span className="text-red-500">*</span>
+              Telefone / WhatsApp
             </label>
             <div className="relative">
+              <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                id="vol-password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Mínimo 6 caracteres"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900 outline-none transition-all text-sm"
-                required
+                id="vol-telefone"
+                type="tel"
+                placeholder="(11) 99999-9999"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                className="w-full pl-9 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900 outline-none transition-all text-sm"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
             </div>
           </div>
 
           {/* Cargo */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-gray-700">
-              Cargo / Função <span className="text-red-500">*</span>
+              Cargo / Função
             </label>
             <input
               id="vol-cargo"
@@ -228,7 +185,6 @@ function NovoVoluntarioModal({
               value={cargo}
               onChange={(e) => setCargo(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900 outline-none transition-all text-sm"
-              required
             />
           </div>
 
@@ -240,17 +196,13 @@ function NovoVoluntarioModal({
             <select
               id="vol-departamento"
               value={departamentoId}
-              onChange={(e) =>
-                setDepartamentoId(Number(e.target.value) || "")
-              }
+              onChange={(e) => setDepartamentoId(Number(e.target.value) || '')}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-900 outline-none transition-all text-sm text-gray-900"
               required
             >
               <option value="">Selecione o departamento...</option>
               {departamentos.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.nome}
-                </option>
+                <option key={d.id} value={d.id}>{d.nome}</option>
               ))}
             </select>
           </div>
@@ -301,45 +253,32 @@ function NovoVoluntarioModal({
 
 export default function EquipePage() {
   const [grupos, setGrupos] = useState<DepartamentoGrupo[]>([]);
-  const [departamentos, setDepartamentos] = useState<Department[]>([]);
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
 
   const buscarEquipes = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/`);
-      if (!response.ok) throw new Error("Erro ao buscar equipes");
-      const data: Voluntario[] = await response.json();
+    const supabase = createClient();
 
-      const mapa: Record<string, Voluntario[]> = {};
-      for (const v of data) {
-        const dept = v.departamento_nome;
-        if (!mapa[dept]) mapa[dept] = [];
-        mapa[dept].push(v);
-      }
+    const { data, error } = await supabase
+      .from('voluntarios')
+      .select('*, departamentos(id, nome)')
+      .eq('ativo', true)
+      .order('nome', { ascending: true });
 
-      setGrupos(
-        Object.entries(mapa).map(([nome, voluntarios]) => ({
-          nome,
-          voluntarios,
-        }))
-      );
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
+    if (!error) {
+      setGrupos(agruparPorDepartamento((data as VoluntarioComDepartamento[]) ?? []));
     }
+    setLoading(false);
   }, []);
 
   async function buscarDepartamentos() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/departments/`);
-      if (!response.ok) return;
-      const data: Department[] = await response.json();
-      setDepartamentos(data);
-    } catch (error) {
-      console.error(error);
-    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('departamentos')
+      .select('id, nome')
+      .order('nome');
+    if (data) setDepartamentos(data as Departamento[]);
   }
 
   useEffect(() => {
@@ -388,20 +327,14 @@ export default function EquipePage() {
         {loading && (
           <div className="grid grid-cols-1 gap-6">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="bg-white border border-gray-100 rounded-2xl p-6 animate-pulse"
-              >
+              <div key={i} className="bg-white border border-gray-100 rounded-2xl p-6 animate-pulse">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-6 h-6 bg-gray-200 rounded" />
                   <div className="h-5 w-40 bg-gray-200 rounded-full" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {[1, 2, 3, 4].map((j) => (
-                    <div
-                      key={j}
-                      className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3"
-                    >
+                    <div key={j} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
                       <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
                       <div className="flex flex-col gap-1.5 flex-1">
                         <div className="h-3 w-24 bg-gray-200 rounded-full" />
@@ -439,13 +372,11 @@ export default function EquipePage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{getDeptIcon(grupo.nome)}</span>
-                  <h2 className="text-lg font-bold text-gray-900">
-                    {grupo.nome}
-                  </h2>
+                  <h2 className="text-lg font-bold text-gray-900">{grupo.nome}</h2>
                 </div>
                 <span className="text-xs font-medium text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
-                  {grupo.voluntarios.length}{" "}
-                  {grupo.voluntarios.length === 1 ? "membro" : "membros"}
+                  {grupo.voluntarios.length}{' '}
+                  {grupo.voluntarios.length === 1 ? 'membro' : 'membros'}
                 </span>
               </div>
 
@@ -461,19 +392,28 @@ export default function EquipePage() {
                       {getIniciais(vol.nome)}
                     </div>
 
-                    {/* Nome e cargo */}
+                    {/* Nome, cargo e telefone */}
                     <div className="flex flex-col flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
-                        {vol.nome}
-                      </p>
+                      <p className="text-sm font-semibold text-gray-900 truncate">{vol.nome}</p>
                       <p className="text-xs text-gray-500 truncate">{vol.cargo}</p>
+                      {vol.telefone && (
+                        <a
+                          href={`https://wa.me/55${vol.telefone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 truncate"
+                        >
+                          <Phone size={10} />
+                          {vol.telefone}
+                        </a>
+                      )}
                     </div>
 
                     {/* Bolinha de status */}
                     <div
-                      title={vol.ativo ? "Ativo" : "Inativo"}
+                      title={vol.ativo ? 'Ativo' : 'Inativo'}
                       className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                        vol.ativo ? "bg-green-500" : "bg-gray-300"
+                        vol.ativo ? 'bg-green-500' : 'bg-gray-300'
                       }`}
                     />
                   </div>

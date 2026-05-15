@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Camera,
   Monitor,
@@ -12,18 +12,19 @@ import {
   UserPlus,
   Loader2,
   ShieldCheck,
-} from "lucide-react";
-import Image from "next/image";
+} from 'lucide-react';
+import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
 
 export default function Register() {
   const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
@@ -33,44 +34,57 @@ export default function Register() {
     setErro(null);
 
     if (password !== confirm) {
-      setErro("As senhas não coincidem.");
+      setErro('As senhas não coincidem.');
       return;
     }
 
     if (password.length < 6) {
-      setErro("A senha deve ter ao menos 6 caracteres.");
+      setErro('A senha deve ter ao menos 6 caracteres.');
       return;
     }
 
     setLoading(true);
 
-    try {
-      const resposta = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, email, password }),
-      });
+    // Cadastro via Supabase Auth (signUp com metadados de nome).
+    // Usa o browser client — o @supabase/ssr gerencia os cookies de sessão automaticamente.
+    // NOTA: signUp requer confirmação de e-mail por padrão.
+    // Para desativar, configure Authentication → Email em Supabase Dashboard:
+    //   "Enable email confirmations" → OFF
+    const supabase = createClient();
 
-      const dados = await resposta.json();
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { nome }, // salvo em auth.users.raw_user_meta_data
+      },
+    });
 
-      if (!resposta.ok) {
-        throw new Error(dados.error || "Erro ao criar conta");
-      }
+    if (error) {
+      const mensagens: Record<string, string> = {
+        'User already registered': 'Este e-mail já está cadastrado.',
+        'already been registered': 'Este e-mail já está cadastrado.',
+        'Password should be at least': 'A senha deve ter ao menos 6 caracteres.',
+        'Unable to validate email': 'E-mail inválido.',
+      };
 
-      setSucesso(true);
-      setTimeout(() => router.push("/login"), 2000);
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Ocorreu um erro inesperado";
-      setErro(message);
-    } finally {
+      const mensagem =
+        Object.entries(mensagens).find(([key]) => error.message.includes(key))?.[1]
+        ?? error.message;
+
+      setErro(mensagem);
       setLoading(false);
+      return;
     }
+
+    setSucesso(true);
+    // Aguarda 2 segundos e redireciona para login
+    setTimeout(() => router.push('/login'), 2000);
   }
 
   return (
     <div className="min-h-screen flex bg-slate-50 font-sans">
-      {/* ── PAINEL ESQUERDO: Branding (idêntico ao login) ── */}
+      {/* ── PAINEL ESQUERDO: Branding ── */}
       <div className="hidden lg:flex lg:w-1/2 bg-creative-dark relative overflow-hidden flex-col justify-between p-16">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/20 blur-[120px] rounded-full" />
@@ -124,7 +138,7 @@ export default function Register() {
               alt="Creative"
               width={120}
               height={32}
-              style={{ height: "auto" }}
+              style={{ height: 'auto' }}
               priority
             />
           </div>
@@ -150,7 +164,7 @@ export default function Register() {
                   Conta criada com sucesso!
                 </h3>
                 <p className="text-slate-500 text-sm">
-                  Redirecionando para o login...
+                  Verifique seu e-mail para confirmar a conta, depois faça login.
                 </p>
               </div>
             ) : (
@@ -197,11 +211,11 @@ export default function Register() {
                   <div className="relative">
                     <input
                       id="reg-password"
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       placeholder="Mínimo 6 caracteres"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                      className="text-black w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                       required
                       autoComplete="new-password"
                     />
@@ -210,11 +224,7 @@ export default function Register() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      {showPassword ? (
-                        <EyeOff size={20} />
-                      ) : (
-                        <Eye size={20} />
-                      )}
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
                 </div>
@@ -227,11 +237,11 @@ export default function Register() {
                   <div className="relative">
                     <input
                       id="reg-confirm"
-                      type={showConfirm ? "text" : "password"}
+                      type={showConfirm ? 'text' : 'password'}
                       placeholder="Repita a senha"
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
-                      className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                      className="text-black w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                       required
                       autoComplete="new-password"
                     />
@@ -240,11 +250,7 @@ export default function Register() {
                       onClick={() => setShowConfirm(!showConfirm)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      {showConfirm ? (
-                        <EyeOff size={20} />
-                      ) : (
-                        <Eye size={20} />
-                      )}
+                      {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
                 </div>
@@ -281,7 +287,7 @@ export default function Register() {
           </div>
 
           <p className="text-center text-slate-500 text-sm">
-            Já tem conta?{" "}
+            Já tem conta?{' '}
             <a
               href="/login"
               className="font-bold text-slate-900 hover:underline"

@@ -1,37 +1,26 @@
 /**
  * app/(dashboard)/page.tsx
  *
- * SERVER COMPONENT — busca as métricas do dashboard no servidor,
- * sem useEffect, sem "use client". Isso elimina o tempo de espera
- * de hydration para dados que não mudam dinamicamente.
- *
- * O seletor de mês/escala fica no componente cliente EscalasSection.
+ * SERVER COMPONENT — busca as métricas do dashboard diretamente no Supabase
+ * via a função RPC fn_dashboard_metricas (schema creative).
  */
 
-import Statcard from "@/components/dashboard/status-card";
-import EscalasSection from "@/components/dashboard/EscalasSection";
-import { Calendar, Briefcase, Church, Users } from "lucide-react";
-import { API_BASE_URL } from "@/lib/constants";
-
-interface DashboardMetricas {
-  total_schedules: number;
-  total_users: number;
-  total_departments: number;
-  total_cults: number;
-}
+import Statcard from '@/components/dashboard/status-card';
+import EscalasSection from '@/components/dashboard/EscalasSection';
+import { Calendar, Briefcase, Church, Users } from 'lucide-react';
+import { createClient } from '@/lib/supabase/server';
+import type { DashboardMetricas } from '@/lib/types/database';
 
 async function buscarMetricas(): Promise<DashboardMetricas> {
   try {
-    const response = await fetch(`${API_BASE_URL}/dashboard/metricas`, {
-      // Revalida o cache a cada 60 segundos (ISR)
-      next: { revalidate: 60 },
-    });
+    const supabase = await createClient();
 
-    if (!response.ok) throw new Error("Falha ao buscar métricas");
+    const { data, error } = await supabase.rpc('fn_dashboard_metricas');
 
-    return response.json();
+    if (error) throw error;
+
+    return data as DashboardMetricas;
   } catch {
-    // Retorna zeros em caso de erro para não quebrar a UI
     return {
       total_schedules: 0,
       total_users: 0,
@@ -42,7 +31,6 @@ async function buscarMetricas(): Promise<DashboardMetricas> {
 }
 
 export default async function Home() {
-  // Fetch acontece no servidor — zero useEffect, zero loading state para métricas
   const metricas = await buscarMetricas();
 
   return (
@@ -55,7 +43,7 @@ export default async function Home() {
         <p className="text-gray-500">Gerencie as escalas de voluntários</p>
       </div>
 
-      {/* Grid de Cards de Métricas (renderizado no servidor) */}
+      {/* Grid de Cards de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Statcard
           titulo="Total de Escalas"
