@@ -45,18 +45,13 @@ export default function Register() {
 
     setLoading(true);
 
-    // Cadastro via Supabase Auth (signUp com metadados de nome).
-    // Usa o browser client — o @supabase/ssr gerencia os cookies de sessão automaticamente.
-    // NOTA: signUp requer confirmação de e-mail por padrão.
-    // Para desativar, configure Authentication → Email em Supabase Dashboard:
-    //   "Enable email confirmations" → OFF
     const supabase = createClient();
 
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { nome }, // salvo em auth.users.raw_user_meta_data
+        data: { nome },
       },
     });
 
@@ -78,100 +73,114 @@ export default function Register() {
     }
 
     setSucesso(true);
-    // Aguarda 2 segundos e redireciona para login
     setTimeout(() => router.push('/login'), 2000);
   }
 
   return (
     <div className="min-h-screen flex bg-slate-50 font-sans">
       {/* ── PAINEL ESQUERDO: Branding ── */}
-      <div className="hidden lg:flex lg:w-1/2 bg-creative-dark relative overflow-hidden flex-col justify-between p-16">
+      <div className="hidden lg:flex lg:w-[40%] xl:w-[35%] bg-creative-dark relative overflow-hidden flex-col justify-between p-16">
+        {/* Efeitos de luz */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/20 blur-[120px] rounded-full" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 blur-[120px] rounded-full" />
+          <div className="absolute top-[-10%] right-[-10%] w-[70%] h-[70%] bg-blue-500/20 blur-[120px] rounded-full" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[70%] h-[70%] bg-indigo-500/10 blur-[120px] rounded-full" />
         </div>
 
         <div className="relative z-10">
+          {/* Logo Branding */}
+          <div className="mb-12">
+            <Image
+              src="/logo.svg"
+              alt="Creative"
+              width={180}
+              height={48}
+              className="brightness-200"
+              priority
+            />
+          </div>
+
           <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 px-4 py-2 rounded-full mb-8">
             <ShieldCheck size={16} className="text-blue-400" />
-            <span className="text-white/70 text-sm font-medium">
+            <span className="text-white/70 text-sm font-medium tracking-wide">
               Acesso Restrito — Somente Líderes
             </span>
           </div>
 
-          <h1 className="text-white text-5xl font-black leading-tight tracking-tighter mb-6">
+          <h1 className="text-white text-5xl xl:text-6xl font-black leading-tight tracking-tighter mb-6">
             Crie sua conta <br />
             <span className="text-blue-400">de Liderança</span> <br />
             no sistema.
           </h1>
-          <p className="text-creative-text text-lg max-w-md leading-relaxed">
+          <p className="text-creative-text text-lg max-w-sm leading-relaxed opacity-80">
             Líderes e administradores têm acesso completo para gerenciar
             voluntários, escalas e departamentos.
           </p>
 
-          <div className="flex gap-4 mt-10">
+          <div className="flex gap-4 mt-12">
             {[Camera, Monitor, Power, Video].map((Icon, i) => (
               <div
                 key={i}
-                className="p-3 bg-white/5 border border-white/10 rounded-lg text-white/40"
+                className="p-3.5 bg-white/5 border border-white/10 rounded-2xl text-white/40 backdrop-blur-sm"
               >
-                <Icon size={20} />
+                <Icon size={22} />
               </div>
             ))}
           </div>
         </div>
 
         <div className="relative z-10">
-          <p className="text-white/30 text-sm">
+          <p className="text-white/30 text-xs tracking-widest uppercase font-medium">
             © 2026 Creative System · Gestão de Voluntários
           </p>
         </div>
       </div>
 
       {/* ── PAINEL DIREITO: Formulário ── */}
-      <div className="flex-1 flex items-center justify-center p-8 sm:p-16">
+      <div className="flex-1 flex items-center justify-center p-8 sm:p-12 xl:p-16">
         <div className="w-full max-w-md space-y-8">
-          {/* Logo mobile */}
-          <div className="flex lg:hidden justify-center mb-4">
-            <Image
-              src="/logo.svg"
-              alt="Creative"
-              width={120}
-              height={32}
-              style={{ height: 'auto' }}
-              priority
-            />
+          {/* Logo mobile (Visible on white background, so we invert it) */}
+          <div className="flex lg:hidden justify-center mb-6">
+            <div className="bg-slate-900 px-6 py-4 rounded-2xl shadow-xl">
+               <Image
+                 src="/logo.svg"
+                 alt="Creative"
+                 width={140}
+                 height={36}
+                 className="brightness-200"
+                 priority
+               />
+            </div>
           </div>
 
           {/* Cabeçalho */}
           <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">
+            <h2 className="text-3xl xl:text-4xl font-bold text-slate-900 tracking-tight">
               Criar conta de líder
             </h2>
-            <p className="text-slate-500 mt-2">
-              Preencha os dados para criar sua conta de acesso
+            <p className="text-slate-500 mt-3 text-lg">
+              Preencha os dados para sua conta de acesso
             </p>
           </div>
 
           {/* Card do Formulário */}
-          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50">
+          <div className="bg-white p-8 xl:p-10 rounded-[2.5rem] border border-slate-200 shadow-2xl shadow-slate-200/60">
             {sucesso ? (
-              <div className="flex flex-col items-center gap-4 py-6 text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                  <ShieldCheck size={32} className="text-green-600" />
+              <div className="flex flex-col items-center gap-4 py-8 text-center">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-2">
+                  <ShieldCheck size={40} className="text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-2xl font-bold text-slate-900">
                   Conta criada com sucesso!
                 </h3>
-                <p className="text-slate-500 text-sm">
+                <p className="text-slate-500">
                   Verifique seu e-mail para confirmar a conta, depois faça login.
                 </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Nome */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 ml-1">
+                  <label className="text-sm font-bold text-slate-700 ml-1 uppercase tracking-wider">
                     Nome completo
                   </label>
                   <input
@@ -180,7 +189,7 @@ export default function Register() {
                     placeholder="João da Silva"
                     value={nome}
                     onChange={(e) => setNome(e.target.value)}
-                    className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                     required
                     autoComplete="name"
                   />
@@ -188,7 +197,7 @@ export default function Register() {
 
                 {/* E-mail */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 ml-1">
+                  <label className="text-sm font-bold text-slate-700 ml-1 uppercase tracking-wider">
                     E-mail
                   </label>
                   <input
@@ -197,7 +206,7 @@ export default function Register() {
                     placeholder="exemplo@igreja.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                    className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                     required
                     autoComplete="email"
                   />
@@ -205,7 +214,7 @@ export default function Register() {
 
                 {/* Senha */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 ml-1">
+                  <label className="text-sm font-bold text-slate-700 ml-1 uppercase tracking-wider">
                     Senha
                   </label>
                   <div className="relative">
@@ -215,23 +224,23 @@ export default function Register() {
                       placeholder="Mínimo 6 caracteres"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="text-black w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                       required
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
                     </button>
                   </div>
                 </div>
 
                 {/* Confirmar Senha */}
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 ml-1">
+                  <label className="text-sm font-bold text-slate-700 ml-1 uppercase tracking-wider">
                     Confirmar senha
                   </label>
                   <div className="relative">
@@ -241,21 +250,20 @@ export default function Register() {
                       placeholder="Repita a senha"
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
-                      className="text-black w-full px-5 py-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-6 py-4 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all"
                       required
                       autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirm(!showConfirm)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+                      {showConfirm ? <EyeOff size={22} /> : <Eye size={22} />}
                     </button>
                   </div>
                 </div>
 
-                {/* Mensagem de erro */}
                 {erro && (
                   <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
                     <span className="mt-0.5 shrink-0">⚠️</span>
@@ -263,22 +271,21 @@ export default function Register() {
                   </div>
                 )}
 
-                {/* Botão */}
                 <button
                   id="register-submit"
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-creative-dark text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-900/20 hover:bg-slate-900 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0 mt-2"
+                  className="w-full bg-slate-900 text-white font-bold py-5 rounded-2xl shadow-xl shadow-blue-900/10 hover:bg-black hover:-translate-y-1 active:translate-y-0 transition-all flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0 mt-4"
                 >
                   {loading ? (
                     <>
-                      <Loader2 size={18} className="animate-spin" />
+                      <Loader2 size={20} className="animate-spin" />
                       Criando conta...
                     </>
                   ) : (
                     <>
                       Criar Conta de Líder
-                      <UserPlus size={18} />
+                      <UserPlus size={20} />
                     </>
                   )}
                 </button>
@@ -286,11 +293,11 @@ export default function Register() {
             )}
           </div>
 
-          <p className="text-center text-slate-500 text-sm">
+          <p className="text-center text-slate-500 font-medium">
             Já tem conta?{' '}
             <a
               href="/login"
-              className="font-bold text-slate-900 hover:underline"
+              className="text-slate-900 hover:underline font-black"
             >
               Fazer login
             </a>
