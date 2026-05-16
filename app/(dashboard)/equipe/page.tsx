@@ -8,6 +8,13 @@ import {
   Loader2,
   Users,
   Phone,
+  Smartphone,
+  Camera,
+  Projector,
+  Monitor,
+  Settings,
+  Clapperboard,
+  Lightbulb
 } from 'lucide-react';
 import type { Departamento, VoluntarioComDepartamento } from '@/lib/types/database';
 
@@ -21,14 +28,15 @@ function getIniciais(nome: string): string {
   return nome.substring(0, 2).toUpperCase();
 }
 
-function getDeptIcon(nome: string): string {
+function getDeptIcon(nome: string) {
   const lower = nome.toLowerCase();
-  if (lower.includes('corte') || lower.includes('câmera') || lower.includes('camera')) return '🎬';
-  if (lower.includes('iluminação') || lower.includes('iluminacao') || lower.includes('luz')) return '💡';
-  if (lower.includes('som') || lower.includes('áudio') || lower.includes('audio')) return '🎵';
-  if (lower.includes('mídia') || lower.includes('midia')) return '📱';
-  if (lower.includes('transmissão') || lower.includes('transmissao')) return '📡';
-  return '⚙️';
+  if (lower.includes('stories') || lower.includes('mídia') || lower.includes('midia')) return <Smartphone size={20} className="text-blue-500" />;
+  if (lower.includes('foto')) return <Camera size={20} className="text-purple-500" />;
+  if (lower.includes('datashow') || lower.includes('projeção') || lower.includes('data show')) return <Monitor size={20} className="text-emerald-500" />;
+  if (lower.includes('corte') || lower.includes('câmera') || lower.includes('camera')) return <Clapperboard size={20} className="text-red-500" />;
+  if (lower.includes('iluminação') || lower.includes('luz')) return <Lightbulb size={20} className="text-amber-500" />;
+  
+  return <Settings size={20} className="text-gray-500" />;
 }
 
 // ─── Agrupamento por Departamento ────────────────────────────────────────────
@@ -362,65 +370,68 @@ export default function EquipePage() {
         )}
 
         {/* Cards por Departamento */}
-        {!loading &&
-          grupos.map((grupo) => (
-            <div
-              key={grupo.nome}
-              className="bg-white border border-gray-100 rounded-2xl p-6 flex flex-col gap-4 shadow-sm"
-            >
-              {/* Header do Departamento */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{getDeptIcon(grupo.nome)}</span>
-                  <h2 className="text-lg font-bold text-gray-900">{grupo.nome}</h2>
-                </div>
-                <span className="text-xs font-medium text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
-                  {grupo.voluntarios.length}{' '}
-                  {grupo.voluntarios.length === 1 ? 'membro' : 'membros'}
-                </span>
-              </div>
-
-              {/* Grid de Voluntários */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {grupo.voluntarios.map((vol) => (
-                  <div
-                    key={vol.id}
-                    className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100 hover:border-gray-200 hover:bg-gray-100/50 transition-colors"
-                  >
-                    {/* Avatar com iniciais */}
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
-                      {getIniciais(vol.nome)}
-                    </div>
-
-                    {/* Nome, cargo e telefone */}
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{vol.nome}</p>
-                      <p className="text-xs text-gray-500 truncate">{vol.cargo}</p>
-                      {vol.telefone && (
-                        <a
-                          href={`https://wa.me/55${vol.telefone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 truncate"
-                        >
-                          <Phone size={10} />
-                          {vol.telefone}
-                        </a>
-                      )}
-                    </div>
-
-                    {/* Bolinha de status */}
-                    <div
-                      title={vol.ativo ? 'Ativo' : 'Inativo'}
-                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                        vol.ativo ? 'bg-green-500' : 'bg-gray-300'
-                      }`}
-                    />
+        {!loading && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {grupos.map((grupo) => (
+              <div
+                key={grupo.nome}
+                className="bg-white border border-gray-100 rounded-2xl p-6 flex flex-col gap-4 shadow-sm"
+              >
+                {/* Header do Departamento */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {getDeptIcon(grupo.nome)}
+                    <h2 className="text-lg font-bold text-gray-900">{grupo.nome}</h2>
                   </div>
-                ))}
+                  <span className="text-xs font-medium text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full">
+                    {grupo.voluntarios.length}{' '}
+                    {grupo.voluntarios.length === 1 ? 'membro' : 'membros'}
+                  </span>
+                </div>
+
+                {/* Grid de Voluntários */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {grupo.voluntarios.map((vol) => (
+                    <div
+                      key={vol.id}
+                      className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100 hover:border-gray-200 hover:bg-gray-100/50 transition-colors"
+                    >
+                      {/* Avatar com iniciais */}
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
+                        {getIniciais(vol.nome)}
+                      </div>
+
+                      {/* Nome, cargo e telefone */}
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{vol.nome}</p>
+                        <p className="text-xs text-gray-500 truncate">{vol.cargo}</p>
+                        {vol.telefone && (
+                          <a
+                            href={`https://wa.me/55${vol.telefone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 truncate"
+                          >
+                            <Phone size={10} />
+                            {vol.telefone}
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Bolinha de status */}
+                      <div
+                        title={vol.ativo ? 'Ativo' : 'Inativo'}
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                          vol.ativo ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

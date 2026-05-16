@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import EscalaCard, { EscalaCardProps } from '@/components/dashboard/escala-card';
 import { EscalasGridSkeleton } from '@/components/dashboard/skeletons';
 import { createClient } from '@/lib/supabase/client';
-import type { EscalaMensal } from '@/lib/types/database';
+import type { EscalaMensal, Culto } from '@/lib/types/database';
 
 const MESES_PT: Record<number, string> = {
   1: 'Janeiro',  2: 'Fevereiro', 3: 'Março',    4: 'Abril',
@@ -13,12 +13,19 @@ const MESES_PT: Record<number, string> = {
   9: 'Setembro', 10: 'Outubro',  11: 'Novembro', 12: 'Dezembro',
 };
 
+const DIAS_TRADUCAO: Record<string, string> = {
+  'Sunday': 'Domingo', 'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta',
+  'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado',
+  'Sun': 'Domingo', 'Mon': 'Segunda', 'Tue': 'Terça', 'Wed': 'Quarta',
+  'Thu': 'Quinta', 'Fri': 'Sexta', 'Sat': 'Sábado'
+};
+
 /**
  * Transforma os dados da view vw_escalas_mensais para o formato dos EscalaCards.
  * A view já agrupa por escala (1 linha por departamento por data) — aqui
  * agrupamos por dia para exibir múltiplos departamentos em um mesmo card.
  */
-function transformarParaCards(dados: EscalaMensal[]): EscalaCardProps[] {
+function transformarParaCards(dados: EscalaMensal[], cultos: Culto[]): EscalaCardProps[] {
   // Agrupa por dia (pode haver múltiplos departamentos no mesmo dia)
   const porDia = new Map<string, EscalaMensal[]>();
   for (const linha of dados) {
@@ -31,6 +38,21 @@ function transformarParaCards(dados: EscalaMensal[]): EscalaCardProps[] {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, linhas]) => {
       const primeira = linhas[0];
+      
+      const diaSemana = DIAS_TRADUCAO[primeira.dia_semana] || primeira.dia_semana;
+      
+      // Formata data: "Sábado, 16/05/2026"
+      const dataFormatada = `${diaSemana}, ${primeira.dia_formatado}`;
+      
+      // Tenta encontrar o culto para o mesmo dia/hora ou usa o horário padrão
+      // Como a view não tem culto_id, vamos tentar bater pela data_hora
+      const cultoEncontrado = cultos.find(c => c.data === primeira.data_hora);
+      const cultoNome = cultoEncontrado ? cultoEncontrado.nome : "Culto";
+
+      // Extrai o horário
+      const hora = primeira.data_hora.includes('T') 
+        ? primeira.data_hora.split('T')[1].substring(0, 5) 
+        : "";
 
       // Status do dia = o pior entre todos os departamentos
       const statusPrioridade = { critica: 0, alerta: 1, confirmada: 2 };
@@ -40,17 +62,14 @@ function transformarParaCards(dados: EscalaMensal[]): EscalaCardProps[] {
       );
 
       return {
-        data: primeira.dia_formatado,
-        diaHora: primeira.dia_semana,
+        data: dataFormatada,
+        cultoInfo: `${cultoNome} • ${hora}`,
         status: statusDia,
         equipes: linhas.map((l) => ({
+          id: l.escala_id,
           nome: l.departamento_nome,
-          membros: l.voluntarios.map((v) => v.nome).join(', ') || 'Sem voluntários',
-          alerta: l.status !== 'confirmada'
-            ? l.status === 'critica'
-              ? 'Equipe incompleta — crítico!'
-              : 'Poucos voluntários escalados'
-            : undefined,
+          membros: l.voluntarios.map((v) => v.nome).join(', '),
+          alerta: l.voluntarios.length === 0 ? 'Poucos voluntários escalados' : undefined,
         })),
       };
     });
@@ -85,11 +104,29 @@ export default function EscalasSection() {
 
       if (error) throw error;
 
-      setEscalas(transformarParaCards((data as EscalaMensal[]) ?? []));
+      // Busca os cultos para bater o nome
+      const { data: cultosData } = await supabase
+        .from('cultos')
+        .select('*');
+
+      setEscalas(transformarParaCards((data as EscalaMensal[]) ?? [], (cultosData as Culto[]) ?? []));
     } catch (error) {
       setErro(error instanceof Error ? error.message : 'Erro ao carregar escalas');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function excluirEscala(id: number) {
+    if (!confirm('Deseja realmente excluir esta escala?')) return;
+    
+    const supabase = createClient();
+    const { error } = await supabase.from('escalas').delete().eq('id', id);
+    
+    if (error) {
+      alert('Erro ao excluir escala');
+    } else {
+      buscarEscalas();
     }
   }
 
@@ -176,9 +213,9 @@ export default function EscalasSection() {
       )}
 
       {!loading && !erro && escalas.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {escalas.map((escala, index) => (
-            <EscalaCard key={index} {...escala} />
+            <EscalaCard key={index} {...escala} onDelete={excluirEscala} />
           ))}
         </div>
       )}

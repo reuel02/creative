@@ -3,7 +3,6 @@
 import {
   LayoutDashboard,
   Users,
-  Zap,
   ClipboardList,
   PlusCircle,
   Church,
@@ -18,11 +17,11 @@ import { usePathname, useRouter } from "next/navigation";
 const menuItems = [
   { name: "Visão Geral", icon: LayoutDashboard, href: "/" },
   { name: "Equipe", icon: Users, href: "/equipe" },
-  { name: "Gerador Inteligente", icon: Zap, href: "/gerador" },
   { name: "Relatórios", icon: ClipboardList, href: "/relatorios" },
   { name: "Nova Escala", icon: PlusCircle, href: "/escala" },
   { name: "Cultos", icon: Church, href: "/cultos" },
 ];
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -58,26 +57,27 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           fixed left-0 top-0 z-50 flex flex-col w-64 h-screen
           bg-creative-dark border-r border-creative-border/10
           transition-transform duration-300 ease-in-out
+          overflow-hidden
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0
         `}
         aria-label="Menu de navegação"
       >
         {/* ── Header: Logo + Fechar (mobile) ── */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-2">
-          <Image
-            src="/logo.svg"
-            alt="Logo do Creative"
-            width={150}
-            height={40}
-            style={{ height: "auto" }}
-            className="drop-shadow-sm scale-[1.6] origin-left"
-            priority
-          />
+        <div className="flex items-center justify-between px-6 pt-12 pb-4">
+          <div className="relative w-full h-12">
+            <Image
+              src="/logo.svg"
+              alt="Logo do Creative"
+              fill
+              className="object-contain object-left scale-[4] origin-left drop-shadow-lg brightness-110"
+              priority
+            />
+          </div>
           {/* Botão fechar — apenas mobile */}
           <button
             onClick={onClose}
-            className="md:hidden p-1.5 rounded-lg text-creative-sidebar-text hover:text-white hover:bg-white/10 transition-colors"
+            className="md:hidden p-1.5 rounded-lg text-creative-sidebar-text hover:text-white hover:bg-white/10 transition-colors z-10"
             aria-label="Fechar menu"
           >
             <X size={20} />
@@ -154,6 +154,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <LogOut size={20} />
             <span className="font-medium text-sm tracking-wide">Sair</span>
           </button>
+
+          {/* ── Developer Credits ── */}
+          <div className="mt-8 mb-2 flex flex-col items-center gap-1 opacity-40 hover:opacity-100 transition-opacity duration-500">
+             <div className="flex items-center gap-1.5">
+               <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+               <span className="text-[10px] font-bold text-white tracking-widest uppercase">Creative v1.0</span>
+             </div>
+             <p className="text-[10px] text-creative-sidebar-text font-medium">
+               Desenvolvido com <span className="text-red-500">❤️</span> por 
+               <span className="text-white ml-1">Reuel Ferreira</span>
+             </p>
+          </div>
         </div>
       </aside>
     </>

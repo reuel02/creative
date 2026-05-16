@@ -5,14 +5,35 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Culto } from '@/lib/types/database';
 
+/**
+ * Formata a string ISO do banco (com ou sem offset) para exibição dd/mm/aaaa às HH:MM.
+ * Lê a data/hora como string pura, sem converter pelo timezone do browser,
+ * evitando o deslocamento UTC ↔ GMT-3.
+ */
 function formatarDataHora(iso: string): string {
-  const d = new Date(iso);
-  const dia = String(d.getDate()).padStart(2, '0');
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const ano = d.getFullYear();
-  const hora = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${dia}/${mes}/${ano} às ${hora}:${min}`;
+  // Remove o offset (+00 / +00:00 / -03:00 / Z) para ler os componentes literais
+  const semOffset = iso.replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
+  const [datePart, timePart] = semOffset.split('T');
+  if (!datePart) return iso;
+  const [ano, mes, dia] = datePart.split('-');
+  const hora = timePart ? timePart.substring(0, 5) : '00:00';
+  return `${dia}/${mes}/${ano} às ${hora}`;
+}
+
+/**
+ * Extrai a parte de data (YYYY-MM-DD) da string ISO sem conversão de timezone.
+ */
+function extrairData(iso: string): string {
+  return iso.split('T')[0] ?? '';
+}
+
+/**
+ * Extrai a parte de hora (HH:MM) da string ISO sem conversão de timezone.
+ */
+function extrairHora(iso: string): string {
+  const semOffset = iso.replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
+  const timePart = semOffset.split('T')[1] ?? '';
+  return timePart.substring(0, 5);
 }
 
 export default function CultosPage() {
@@ -54,9 +75,9 @@ export default function CultosPage() {
   function abrirModalEditar(culto: Culto) {
     setEditandoId(culto.id);
     setFormNome(culto.nome);
-    const d = new Date(culto.data);
-    setFormData(d.toISOString().split('T')[0]);
-    setFormHora(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    // Lê data e hora diretamente da string, sem passar por Date()
+    setFormData(extrairData(culto.data));
+    setFormHora(extrairHora(culto.data));
     setModalAberto(true);
   }
 
@@ -66,6 +87,7 @@ export default function CultosPage() {
       return;
     }
 
+    // Salva a string literal sem offset para evitar conversões indesejadas no banco/JS
     const dataISO = `${formData}T${formHora}:00`;
     setSalvando(true);
 
@@ -135,11 +157,11 @@ export default function CultosPage() {
         <p className="text-sm text-gray-400">Nenhum culto cadastrado.</p>
       )}
 
-      <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
         {cultos.map((culto) => (
           <div
             key={culto.id}
-            className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center justify-between hover:shadow-sm transition-shadow"
+            className="bg-white border border-gray-200 rounded-2xl p-5 flex items-center justify-between hover:shadow-md transition-all group"
           >
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
@@ -204,7 +226,7 @@ export default function CultosPage() {
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">
-                Horário
+                Horário <span className="text-xs text-gray-400">(GMT-3)</span>
               </label>
               <input
                 type="time"

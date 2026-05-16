@@ -32,13 +32,15 @@ export default function DashboardLayout({
             <Menu size={22} />
           </button>
           <span className="text-white font-semibold text-sm tracking-wide">
-            Creative System
+            Sistema Creative
           </span>
         </header>
 
         {/* ── Conteúdo da Página ── */}
-        <main className="flex-1 p-4 sm:p-6 md:p-8 bg-white">
-          {children}
+        <main className="flex-1 p-4 sm:p-6 md:p-10 bg-white">
+          <div className="max-w-7xl mx-auto w-full">
+            {children}
+          </div>
         </main>
       </div>
     </div>

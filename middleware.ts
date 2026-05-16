@@ -23,9 +23,9 @@ export async function middleware(request: NextRequest) {
   });
 
   // Cria cliente Supabase com acesso aos cookies da requisição
-  const supabase = createServerClient(
+const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       db: { schema: 'creative' },
       cookies: {
@@ -84,3 +84,4 @@ export const config = {
     '/((?!api|_next/static|_next/image|favicon\\.ico|.*\\.svg|.*\\.png|.*\\.jpg|.*\\.webp).*)',
   ],
 };
+
