@@ -2,9 +2,10 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Church, ChevronDown, AlertCircle, Info, Users } from 'lucide-react';
+import { Church, ChevronDown, AlertCircle, Info, Users, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Culto, Departamento, Voluntario } from '@/lib/types/database';
+import { useValidacaoEscala } from '@/hooks/useValidacaoEscala';
 
 /** Limites de voluntários por departamento */
 const LIMITES_DEPARTAMENTO: Record<string, number> = {
@@ -59,8 +60,13 @@ function EscalaForm() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(!!editId);
 
-  // Regras de Negócio
-  const [conflitos, setConflitos] = useState<Record<number, string>>({}); // id -> data do conflito
+  // Regras de Negócio via Custom Hook
+  const { loadingValidacao, bloqueios, equipeReduzida } = useValidacaoEscala(
+    cultoId,
+    departamentoId,
+    cultos,
+    voluntarios
+  );
 
   useEffect(() => {
     async function init() {
@@ -78,14 +84,6 @@ function EscalaForm() {
       setSelecionados([]);
     }
   }, [departamentoId]);
-
-  useEffect(() => {
-    if (cultoId !== '') {
-      buscarConflitos(Number(cultoId));
-    } else {
-      setConflitos({});
-    }
-  }, [cultoId]);
 
   async function buscarCultos() {
     const supabase = createClient();
@@ -113,56 +111,7 @@ function EscalaForm() {
     if (data) setVoluntarios(data as Voluntario[]);
   }
 
-  /** Busca voluntários escalados no dia anterior ou posterior ao culto selecionado */
-  async function buscarConflitos(idCulto: number) {
-    const cultoRef = cultos.find(c => c.id === idCulto);
-    if (!cultoRef) return;
 
-    const dataBaseStr = extrairData(cultoRef.data);
-    const dataBase = new Date(dataBaseStr + 'T12:00:00');
-
-    const diaAnterior = new Date(dataBase);
-    diaAnterior.setDate(diaAnterior.getDate() - 1);
-    const diaAnteriorStr = diaAnterior.toISOString().split('T')[0];
-
-    const diaSeguinte = new Date(dataBase);
-    diaSeguinte.setDate(diaSeguinte.getDate() + 1);
-    const diaSeguinteStr = diaSeguinte.toISOString().split('T')[0];
-
-    const supabase = createClient();
-    
-    // 1. Busca IDs das escalas que ocorrem nos dias adjacentes
-    const { data: escalasRef } = await supabase
-      .from('escalas')
-      .select('id, data_hora')
-      .or(`data_hora.ilike.${diaAnteriorStr}%,data_hora.ilike.${diaSeguinteStr}%`);
-
-    if (!escalasRef || escalasRef.length === 0) {
-      setConflitos({});
-      return;
-    }
-
-    // 2. Busca voluntários vinculados a essas escalas
-    const idsEscalas = escalasRef.map(e => e.id);
-    const { data: vinculos } = await supabase
-      .from('escala_voluntarios')
-      .select('voluntario_id, escala_id')
-      .in('escala_id', idsEscalas);
-
-    const novosConflitos: Record<number, string> = {};
-    
-    if (vinculos) {
-      vinculos.forEach((v) => {
-        const escalaInfo = escalasRef.find(e => e.id === v.escala_id);
-        if (escalaInfo) {
-          const dataConf = extrairData(escalaInfo.data_hora);
-          novosConflitos[v.voluntario_id] = dataConf;
-        }
-      });
-    }
-
-    setConflitos(novosConflitos);
-  }
 
   async function carregarEscala(id: number) {
     const supabase = createClient();
@@ -210,9 +159,9 @@ function EscalaForm() {
     }
 
     // Verifica se algum selecionado está em conflito (burla do browser)
-    const temConflito = selecionados.some(id => conflitos[id]);
+    const temConflito = selecionados.some(id => bloqueios[id]);
     if (temConflito) {
-      alert('Um ou mais voluntários selecionados já possuem escala em dias consecutivos.');
+      alert('Um ou mais voluntários selecionados não cumprem as regras de escala.');
       return;
     }
 
@@ -326,9 +275,17 @@ function EscalaForm() {
                 Departamento <span className="text-red-500">*</span>
               </label>
               {deptSelecionado && limiteMaximo < 99 && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isLimiteAtingido ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {selecionados.length}/{limiteMaximo} selecionados
-                </span>
+                <div className="flex items-center gap-2">
+                  {equipeReduzida && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                      <Info size={10} />
+                      Regras de descanso ignoradas (Equipe reduzida)
+                    </span>
+                  )}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isLimiteAtingido ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {selecionados.length}/{limiteMaximo} selecionados
+                  </span>
+                </div>
               )}
             </div>
             <select
@@ -382,11 +339,16 @@ function EscalaForm() {
               <p className="text-sm text-gray-500">Selecione quem fará parte desta escala</p>
             </div>
 
-            {voluntarios.length > 0 ? (
+            {loadingValidacao ? (
+              <div className="py-12 flex flex-col items-center justify-center">
+                <Loader2 size={32} className="animate-spin text-gray-300 mb-3" />
+                <p className="text-sm font-medium text-gray-500">Analisando histórico de escalas...</p>
+              </div>
+            ) : voluntarios.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                 {voluntarios.map((vol) => {
-                  const conflitoData = conflitos[vol.id];
-                  const isDisabled = (conflitoData && !selecionados.includes(vol.id)) || (isLimiteAtingido && !selecionados.includes(vol.id));
+                  const bloqueio = bloqueios[vol.id];
+                  const isDisabled = (!!bloqueio && !selecionados.includes(vol.id)) || (isLimiteAtingido && !selecionados.includes(vol.id));
                   
                   return (
                     <label
@@ -414,15 +376,15 @@ function EscalaForm() {
                           )}
                         </div>
                         
-                        {conflitoData && (
+                        {bloqueio && (
                           <div className="flex items-center gap-1 text-red-500 mt-0.5">
                             <AlertCircle size={10} />
                             <span className="text-[10px] font-bold">
-                              Em descanso ({formatarDiaMes(conflitoData)})
+                              {bloqueio.mensagem}
                             </span>
                           </div>
                         )}
-                        {isLimiteAtingido && !selecionados.includes(vol.id) && !conflitoData && (
+                        {isLimiteAtingido && !selecionados.includes(vol.id) && !bloqueio && (
                           <span className="text-[10px] text-gray-400 italic">Limite atingido</span>
                         )}
                       </div>
